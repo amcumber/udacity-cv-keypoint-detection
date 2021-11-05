@@ -14,9 +14,9 @@ class Net(nn.Module):
     N_POOL = 2
     P_DROP = 0.2
     CONV_LAYERS = (1, 32, 64, 128, 256)
-    FC_LAYERS = (512, 512)
+    FC_LAYERS = (1024, 1024)
+    N_INPUT = 224
     N_OUTPUT = 64
-    N_INPUT = 28
 
     def __init__(self):
         super(Net, self).__init__()
@@ -39,7 +39,9 @@ class Net(nn.Module):
         self.final_output = self.build_final_layer()
         
         ## Note that among the layers to add, consider including:
-        # maxpooling layers, multiple conv layers, fully-connected layers, and other layers (such as dropout or batch normalization) to avoid overfitting
+        # maxpooling layers, multiple conv layers, fully-connected layers, and
+        # other layers (such as dropout or batch normalization) to avoid
+        # overfitting
 
     def _get_conv_stack(self, channel_in, channel_out) -> nn.Sequential:
         """
@@ -97,12 +99,16 @@ class Net(nn.Module):
             nn.Linear(channel_in, channel_out),
             nn.ReLU(),
         )
+    
+    def _get_fc_in(self):
+        """Gather dimension of first FC layer"""
+        return self.conv_out**2 * self.CONV_LAYERS[-1]
 
     def build_fc_layers(self) -> List[nn.Sequential]:
         """Build the Fully Connected Layers"""
         first_fc = nn.Sequential(
-            nn.Linear(self.conv_out, self.FC_LAYERS[0]),
-            nn.ReLU,
+            nn.Linear(self._get_fc_in(), self.FC_LAYERS[0]),
+            nn.ReLU(),
         )
         prev_layer = None
         layers = [first_fc]

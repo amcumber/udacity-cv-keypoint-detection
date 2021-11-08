@@ -36,7 +36,6 @@ class Net(nn.Module):
         # Build 
         self.convs = nn.Sequential(*self.build_conv_layers())
         self.fcs = nn.Sequential(*self.build_fc_layers())
-        self.final_output = self.build_final_layer()
         
         ## Note that among the layers to add, consider including:
         # maxpooling layers, multiple conv layers, fully-connected layers, and
@@ -56,31 +55,39 @@ class Net(nn.Module):
             number of channels outputs
         """
         stack =  nn.Sequential(
+            nn.Dropout(self.P_DROP),
             nn.Conv2d(channel_in, channel_out, self.N_KERNEL),
             nn.ReLU(),
             nn.MaxPool2d(self.N_POOL, self.N_POOL),
-            nn.Dropout(self.P_DROP)
         )
-        # Calculate conv_out from conv step
-        self._update_conv_out()
         return stack
 
     def _update_conv_out(self) -> None:
         """Update conv_out parameter with a step in conv_stack"""
         # Calculate conv_out from conv step
-        self.conv_out = (self.conv_out - self.N_KERNEL) //1 + (1 + 2 * 0)
+        self.conv_out = (self.conv_out - self.N_KERNEL) // 1 + (1 + 2 * 0)
         # Calculate conv_out from maxpool step
         self.conv_out = self.conv_out // self.N_POOL
 
     def build_conv_layers(self) -> List[nn.Sequential]:
         """Build the convolutional layers based on get_conv_stack method"""
-        prev_layer = None
         layers = []
-        for layer in self.CONV_LAYERS:
+        first_conv = nn.Sequential(
+            nn.Conv2d(*self.CONV_LAYERS[:2], self.N_KERNEL),
+            nn.ReLU(),
+            nn.MaxPool2d(self.N_POOL, self.N_POOL),
+        )
+        prev_layer = self.CONV_LAYERS[0]
+        self._update_conv_out()
+        layers.append(first_conv)
+
+        for layer in self.CONV_LAYERS[1:]:
             if prev_layer is not None:
                 layers.append(
                     self._get_conv_stack(prev_layer, layer)
                 )
+                # Calculate conv_out from conv step
+                self._update_conv_out()
             prev_layer = layer
         return layers
         
@@ -106,26 +113,26 @@ class Net(nn.Module):
 
     def build_fc_layers(self) -> List[nn.Sequential]:
         """Build the Fully Connected Layers"""
+        # First FC
         first_fc = nn.Sequential(
             nn.Linear(self._get_fc_in(), self.FC_LAYERS[0]),
             nn.ReLU(),
         )
         prev_layer = None
         layers = [first_fc]
+        # Middle FC
         for layer in self.FC_LAYERS:
             if prev_layer is not None:
                 layers.append(
                     self._get_fc_stack(prev_layer, layer)
                 )
             prev_layer = layer
-        return layers
-
-    def build_final_layer(self) -> List[nn.Sequential]:
-        """Build the final layer of the network"""
-        return nn.Sequential(
+        # Final FC
+        final_fc =  nn.Sequential(
             nn.Linear(self.FC_LAYERS[-1], self.N_OUTPUT),
         )
-
+        layers.append(final_fc)
+        return layers
         
     def forward(self, x):
         ## TODO: Define the feedforward behavior of this model
@@ -134,8 +141,7 @@ class Net(nn.Module):
         # x = self.pool(F.relu(self.conv1(x)))
         conv_out = self.convs(x)
         fc_in = conv_out.view(conv_out.size(0), -1)
-        fc_out = self.fcs(fc_in)
-        out = self.final_output(fc_out)
+        out = self.fcs(fc_in)
 
         # a modified x, having gone through all the layers of your model, should be returned
         return out

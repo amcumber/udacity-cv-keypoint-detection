@@ -106,3 +106,6 @@ class Net(nn.Module):
 
         # a modified x, having gone through all the layers of your model, should be returned
         return out
+
+# optimizer = torch.optim.Adam(lr=LR, momentum=MO)
+# criterion = nn.MSELoss()

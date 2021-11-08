@@ -14,9 +14,9 @@ class Net(nn.Module):
     N_POOL = 2
     P_DROP = 0.2
     CONV_LAYERS = (1, 32, 64, 128, 256)
-    FC_LAYERS = (1024, 1024)
+    FC_LAYERS = (1024, 1024, 68)
     N_INPUT = 224
-    N_OUTPUT = 64
+    # N_OUTPUT = 68
 
     def __init__(self):
         super(Net, self).__init__()
@@ -32,35 +32,41 @@ class Net(nn.Module):
 
         # Init Conv_out param
         self.conv_out = self.N_INPUT
+        self.N_OUTPUT = self.FC_LAYERS[-1]
 
         # Build 
-        self.convs = nn.Sequential(*self.build_conv_layers())
-        self.fcs = nn.Sequential(*self.build_fc_layers())
+        self.pool = nn.MaxPool2d(self.N_POOL, self.N_POOL)
+        self.drop = nn.Dropout(self.P_DROP)
+        self.act = nn.ReLU()
+        self.final_act = nn.Tanh()
+
+        self.conv = self._build_conv()
+        self.fc = self._build_fc()
         
         ## Note that among the layers to add, consider including:
         # maxpooling layers, multiple conv layers, fully-connected layers, and
         # other layers (such as dropout or batch normalization) to avoid
         # overfitting
 
-    def _get_conv_stack(self, channel_in, channel_out) -> nn.Sequential:
+    def _build_conv(self) -> nn.Sequential:
         """
-        Return a convolutional stack with preconfigured parameters and updates
-        expected conv_out parameter
+        Construct the convolutional layer end-to-end
 
-        Parameters
-        ----------
-        channel_in : int
-            number of channels inputs
-        channel_out : int
-            number of channels outputs
+        Architecture expects 4 convolutional layers MaxPool2s in between. If
+        any of these parameters change, update this function and the supporting
+        function _update_conv_out.
         """
-        stack =  nn.Sequential(
-            nn.Dropout(self.P_DROP),
-            nn.Conv2d(channel_in, channel_out, self.N_KERNEL),
-            nn.ReLU(),
-            nn.MaxPool2d(self.N_POOL, self.N_POOL),
-        )
-        return stack
+        layers = []
+        for i in range(1, len(self.CONV_LAYERS)):
+            channels = self.CONV_LAYERS[i-1], self.CONV_LAYERS[i]
+            layers.append(nn.Sequential(
+                nn.Conv2d(*channels, self.N_KERNEL),
+                self.act,
+                self.pool,
+                self.drop,
+            ))
+            self._update_conv_out()
+        return nn.Sequential(*layers)
 
     def _update_conv_out(self) -> None:
         """Update conv_out parameter with a step in conv_stack"""
@@ -69,79 +75,34 @@ class Net(nn.Module):
         # Calculate conv_out from maxpool step
         self.conv_out = self.conv_out // self.N_POOL
 
-    def build_conv_layers(self) -> List[nn.Sequential]:
-        """Build the convolutional layers based on get_conv_stack method"""
-        layers = []
-        first_conv = nn.Sequential(
-            nn.Conv2d(*self.CONV_LAYERS[:2], self.N_KERNEL),
-            nn.ReLU(),
-            nn.MaxPool2d(self.N_POOL, self.N_POOL),
-        )
-        prev_layer = self.CONV_LAYERS[0]
-        self._update_conv_out()
-        layers.append(first_conv)
-
-        for layer in self.CONV_LAYERS[1:]:
-            if prev_layer is not None:
-                layers.append(
-                    self._get_conv_stack(prev_layer, layer)
-                )
-                # Calculate conv_out from conv step
-                self._update_conv_out()
-            prev_layer = layer
-        return layers
-        
-    def _get_fc_stack(self, channel_in, channel_out) -> nn.Sequential:
-        """
-        Return a FC stack with preconfigured parameters
-        Parameters
-        ----------
-        channel_in : int
-            number of channels inputs
-        channel_out : int
-            number of channels outputs
-        """
-        return nn.Sequential(
-            nn.Dropout(self.P_DROP),
-            nn.Linear(channel_in, channel_out),
-            nn.ReLU(),
-        )
-    
-    def _get_fc_in(self):
+    def _get_fc_in(self) -> int:
         """Gather dimension of first FC layer"""
         return self.conv_out**2 * self.CONV_LAYERS[-1]
 
-    def build_fc_layers(self) -> List[nn.Sequential]:
-        """Build the Fully Connected Layers"""
-        # First FC
-        first_fc = nn.Sequential(
-            nn.Linear(self._get_fc_in(), self.FC_LAYERS[0]),
-            nn.ReLU(),
-        )
-        prev_layer = None
-        layers = [first_fc]
-        # Middle FC
-        for layer in self.FC_LAYERS:
-            if prev_layer is not None:
-                layers.append(
-                    self._get_fc_stack(prev_layer, layer)
-                )
-            prev_layer = layer
-        # Final FC
-        final_fc =  nn.Sequential(
-            nn.Linear(self.FC_LAYERS[-1], self.N_OUTPUT),
-        )
-        layers.append(final_fc)
-        return layers
-        
+    def _build_fc(self) -> nn.Sequential:
+        layers = []
+        fc_layers = [self._get_fc_in(), *self.FC_LAYERS]
+        # add first and middle layers
+        for i in range(1, len(fc_layers) - 1):
+            channels = fc_layers[i-1], fc_layers[i]
+            layers.append(
+                nn.Sequential(nn.Linear(*channels), self.act, self.drop)
+            )
+        # Add final Layer
+        layers.append(nn.Sequential(
+            nn.Linear(*fc_layers[-2:]),
+            self.final_act,
+        ))
+        return nn.Sequential(*layers)
+
     def forward(self, x):
         ## TODO: Define the feedforward behavior of this model
         # ACM - completed
         ## x is the input image and, as an example, here you may choose to include a pool/conv step:
         # x = self.pool(F.relu(self.conv1(x)))
-        conv_out = self.convs(x)
+        conv_out = self.conv(x)
         fc_in = conv_out.view(conv_out.size(0), -1)
-        out = self.fcs(fc_in)
+        out = self.fc(fc_in)
 
         # a modified x, having gone through all the layers of your model, should be returned
         return out

@@ -87,7 +87,13 @@ class Net(nn.Module):
         # add first and middle layers
         for i in range(1, len(fc_layers) - 1):
             channels = fc_layers[i - 1], fc_layers[i]
-            layers.append(nn.Sequential(nn.Linear(*channels), self.act, self.drop))
+            layers.append(
+                nn.Sequential(
+                    nn.Linear(*channels),
+                    self.act,
+                    self.drop,
+                )
+            )
         # Add final Layer
         layers.append(
             nn.Sequential(
@@ -104,8 +110,8 @@ class Net(nn.Module):
         # x = self.pool(F.relu(self.conv1(x)))
         conv_out = self.conv(x)
         fc_in = conv_out.view(conv_out.size(0), -1)
-        flat_out = self.fc(fc_in)
-        out = flat_out.view(flat_out.size(0), self.N_OUTPUT, -1)
+        out = self.fc(fc_in)
+        # out = flat_out.view(flat_out.size(0), self.N_OUTPUT, -1)
 
         # a modified x, having gone through all the layers of your model, should be returned
         return out

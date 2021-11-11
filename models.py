@@ -12,7 +12,7 @@ from torch.nn.modules.container import Sequential
 class Net(nn.Module):
     """Nerual Network for facial Keypoint detection"""
 
-    ACT = nn.ELU()
+    ACT = nn.ReLU()
 
     def __init__(
         self,
@@ -42,7 +42,8 @@ class Net(nn.Module):
         self.conv = nn.ModuleList()
         width_in = 1
         p_drop = 0.1
-        for k, width_out in zip(reversed(range(1, 5)), (32, 64, 128, 256)):
+        for i, width_out in zip(range(4), (32, 64, 128, 256)):
+            k = 5 if i % 2 else 3
             self.conv.append(
                 nn.Sequential(
                     nn.Conv2d(width_in, width_out, k),

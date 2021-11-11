@@ -1,6 +1,9 @@
 """Define the neural net for facial keypoint detection"""
 ## TODOne: define the convolutional neural network architecture
+import pandas as pd
 from torch import nn
+import torch.nn.functional as F
+from torch.nn.modules.container import Sequential
 
 # can use the below import should you choose to initialize the weights of your
 # Net
@@ -9,15 +12,14 @@ from torch import nn
 class Net(nn.Module):
     """Nerual Network for facial Keypoint detection"""
 
-    N_KERNEL = 3
-    N_POOL = 2
-    P_DROP = 0.2
-    CONV_LAYERS = (1, 32, 64, 128, 256)
-    DENSE_LAYERS = (1024, 1024, 136)
-    N_INPUT = 224
-    # N_OUTPUT = 68
+    ACT = nn.ELU()
 
-    def __init__(self):
+    def __init__(
+        self,
+        n_input: int = 224,
+        n_output: int = 136,
+        dense_size: int = 1024,
+    ):
         """Constuctor"""
         super().__init__()
         # TODOne: Define all the layers of this CNN, the only requirements are:
@@ -33,84 +35,67 @@ class Net(nn.Module):
         # output channels/feature maps, 5x5 square convolution kernel
         # self.conv1 = nn.Conv2d(1, 32, 5)
 
-        # Init Conv_out param
-        self.conv_out = self.N_INPUT
+        # inital architecture https://arxiv.org/pdf/1710.00977.pdf
+        conv_out = n_input
 
         # Build
-        self.pool = nn.MaxPool2d(self.N_POOL, self.N_POOL)
-        # self.drop = nn.Dropout(self.P_DROP)
-        self.act = nn.ReLU()
-        # self.final_act = nn.Threshold(1, 1) # nn.Tanh()
+        self.conv = nn.ModuleList()
+        width_in = 1
+        p_drop = 0.1
+        for k, width_out in zip(reversed(range(1, 5)), (32, 64, 128, 256)):
+            self.conv.append(
+                nn.Sequential(
+                    nn.Conv2d(width_in, width_out, k),
+                    self.ACT,
+                    nn.MaxPool2d(2, 2),
+                    nn.Dropout(p_drop),
+                )
+            )
+            p_drop += 0.1
+            width_in = width_out
+            conv_out = self._get_conv_side(conv_out, k=k) // 2
 
-        self.conv = self._build_conv()
-        self.dense = self._build_dense()
-        # self.init_weights()
+        self.dense = nn.ModuleList()
+        self.dense.append(
+            nn.Sequential(
+                nn.Linear(conv_out ** 2 * width_out, dense_size),
+                self.ACT,
+                nn.Dropout(p_drop),
+            )
+        )
+        p_drop += 0.1
+
+        self.dense.append(
+            nn.Sequential(
+                nn.Linear(dense_size, dense_size),
+                self.ACT,
+                nn.Dropout(p_drop),
+            )
+        )
+        p_drop += 0.1
+
+        # self.dense.append(
+        #     nn.Sequential(
+        #         nn.Linear(dense_size, dense_size),
+        #         self.ACT,
+        #         nn.Dropout(p_drop),
+        #     )
+        # )
+        # p_drop += 0.1
+
+        self.dense.append(nn.Sequential(nn.Linear(dense_size, n_output)))
 
         ## Note that among the layers to add, consider including:
         # maxpooling layers, multiple conv layers, fully-connected layers, and
         # other layers (such as dropout or batch normalization) to avoid
         # overfitting
 
-    def _build_conv(self) -> nn.Sequential:
-        """
-        Construct the convolutional layer end-to-end
+    @staticmethod
+    def _get_conv_side(conv_in, k=3, s=1, p=0) -> None:
+        """Get convolutional side after a pass"""
+        return (conv_in - k) // s + (1 + 2 * p)
 
-        Architecture expects 4 convolutional layers MaxPool2s in between. If
-        any of these parameters change, update this function and the supporting
-        function _update_conv_out.
-        """
-        layers = []
-        for i in range(1, len(self.CONV_LAYERS)):
-            channels = self.CONV_LAYERS[i - 1], self.CONV_LAYERS[i]
-            layers.append(
-                nn.Sequential(
-                    nn.Conv2d(*channels, self.N_KERNEL),
-                    self.act,
-                    self.pool,
-                    # self.drop,
-                )
-            )
-            self._update_conv_out()
-        return nn.Sequential(*layers)
-
-    def _update_conv_out(self) -> None:
-        """Update conv_out parameter with a step in conv_stack"""
-        # Calculate conv_out from conv step
-        self.conv_out = (self.conv_out - self.N_KERNEL) // 1 + (1 + 2 * 0)
-        # Calculate conv_out from maxpool step
-        self.conv_out = self.conv_out // self.N_POOL
-
-    def _get_dense_in(self) -> int:
-        """Gather dimension of first Dense layer"""
-        return self.conv_out ** 2 * self.CONV_LAYERS[-1]
-
-    def _build_dense(self) -> nn.Sequential:
-        layers = []
-        dense_layers = [self._get_dense_in(), *self.DENSE_LAYERS]
-        # add first and middle layers
-        for i in range(1, len(dense_layers) - 1):
-            channels = dense_layers[i - 1], dense_layers[i]
-            layers.append(
-                nn.Sequential(
-                    nn.Linear(*channels),
-                    self.act,
-                    # self.drop,
-                )
-            )
-        # Add final Layer
-        layers.append(
-            nn.Sequential(
-                nn.Linear(*dense_layers[-2:]),
-                # self.final_act,
-            )
-        )
-        return nn.Sequential(*layers)
-
-    # def init_weights(self) -> None:
-    #     """Initialize the weights of the NN"""
-    #     nn.init.
-
-    def forward(self, x_in):
+    def forward(self, x):
         """
         Run the neural net forward.
         Called when class is called through __call__
@@ -119,10 +104,15 @@ class Net(nn.Module):
         # ACM - completed
         # x is the input image and, as an example, here you may choose to
         # include a pool/conv step:
-        # x = self.pool(F.relu(self.conv1(x)))
-        conv_out = self.conv(x_in)
-        dense_in = conv_out.view(conv_out.size(0), -1)
-        out = self.dense(dense_in)
+        for layer in self.conv:
+            x = layer(x)
+
+        x = x.view(x.size(0), -1)
+
+        for layer in self.dense:
+            x = layer(x)
+
+        out = x
         # out = flat_out.view(flat_out.size(0), self.N_OUTPUT, -1)
 
         # a modified x, having gone through all the layers of your model, should

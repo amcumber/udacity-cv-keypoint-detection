@@ -49,7 +49,7 @@ class Net(nn.Module):
                     nn.Conv2d(width_in, width_out, k),
                     self.ACT,
                     nn.MaxPool2d(2, 2),
-                    nn.Dropout(p_drop),
+                    # nn.Dropout(p_drop),
                 )
             )
             p_drop += 0.1
@@ -61,7 +61,7 @@ class Net(nn.Module):
             nn.Sequential(
                 nn.Linear(conv_out ** 2 * width_out, dense_size),
                 self.ACT,
-                nn.Dropout(p_drop),
+                # nn.Dropout(p_drop),
             )
         )
         p_drop += 0.1
@@ -70,19 +70,19 @@ class Net(nn.Module):
             nn.Sequential(
                 nn.Linear(dense_size, dense_size),
                 self.ACT,
-                nn.Dropout(p_drop),
+                # nn.Dropout(p_drop),
             )
         )
         p_drop += 0.1
 
-        # self.dense.append(
-        #     nn.Sequential(
-        #         nn.Linear(dense_size, dense_size),
-        #         self.ACT,
-        #         nn.Dropout(p_drop),
-        #     )
-        # )
-        # p_drop += 0.1
+        self.dense.append(
+            nn.Sequential(
+                nn.Linear(dense_size, dense_size),
+                self.ACT,
+                # nn.Dropout(p_drop),
+            )
+        )
+        p_drop += 0.1
 
         self.dense.append(nn.Sequential(nn.Linear(dense_size, n_output)))
 

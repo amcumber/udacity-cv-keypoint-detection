@@ -16,7 +16,6 @@ class Net(nn.Module):
         self,
         n_input: int = 224,
         n_output: int = 136,
-        dense_size: int = 1024,
         p_drop_init: float = 0.1,
         max_p_drop: float = 0.25,
         n_conv: int = 4,
@@ -40,7 +39,8 @@ class Net(nn.Module):
 
         # inital architecture https://arxiv.org/pdf/1710.00977.pdf
         conv_out = n_input
-        conv_structure = (32, 64, 128, 256, 512)
+        conv_structure = (64, 128, 256, 512)
+        hidden_structure = (1024, 512)
 
         # Build
         self.act_f = act_fun
@@ -69,17 +69,18 @@ class Net(nn.Module):
         # n = 1
         self.dense.append(
             nn.Sequential(
-                nn.Linear(conv_out ** 2 * width_out, dense_size),
+                nn.Linear(conv_out ** 2 * width_out, hidden_structure[0]),
                 self.act_f,
                 nn.Dropout(p_drop),
             )
         )
         p_drop = update_p_drop(p_drop)
 
-        for _ in range(n_fc - 2):
+        for i in range(n_fc - 2):
+            idx = 0 if i < n_fc - 3 else 1
             self.dense.append(
                 nn.Sequential(
-                    nn.Linear(dense_size, dense_size),
+                    nn.Linear(hidden_structure[0], hidden_structure[idx]),
                     self.act_f,
                     nn.Dropout(p_drop),
                 )
@@ -87,7 +88,14 @@ class Net(nn.Module):
             p_drop = update_p_drop(p_drop)
 
         # n = -1
-        self.dense.append(nn.Sequential(nn.Linear(dense_size, n_output)))
+        self.dense.append(
+            nn.Sequential(
+                nn.Linear(
+                    hidden_structure[-1],
+                    n_output,
+                )
+            )
+        )
 
         ## Note that among the layers to add, consider including:
         # maxpooling layers, multiple conv layers, fully-connected layers, and

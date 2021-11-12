@@ -16,10 +16,11 @@ class Net(nn.Module):
         self,
         n_input: int = 224,
         n_output: int = 136,
-        p_drop_init: float = 0.1,
+        p_drop_init: float = 0.25,
+        inc_p_drop: float = 0.1,
         max_p_drop: float = 0.25,
-        n_conv: int = 5,
-        n_fc: int = 3,
+        conv_structure=(32, 64, 128, 256, 512),
+        fc_structure=(1024, 1024, 512),
         act_fun: callable = nn.ReLU(),
     ):
         """Constuctor"""
@@ -39,20 +40,22 @@ class Net(nn.Module):
 
         # inital architecture https://arxiv.org/pdf/1710.00977.pdf
         conv_out = n_input
-        conv_structure = (32, 64, 128, 256, 512)
-        hidden_structure = (1024, 512)
+        hidden_structure = fc_structure
 
         # Build
         self.act_f = act_fun
 
         width_in = width_out = 1
         p_drop = p_drop_init
-        update_p_drop = self._update_p_drop(max_p_drop=max_p_drop)
+        update_p_drop = self._update_p_drop(
+            max_p_drop=max_p_drop,
+            inc_p_drop=inc_p_drop,
+        )
 
         self.conv = nn.ModuleList()
-        for i, width_out in zip(range(n_conv), conv_structure[:n_conv]):
-            # k = 5 if i % 2 else 3
-            k = 3 if i < n_conv - 1 else 1
+        for i, width_out in zip(range(len(conv_structure)), conv_structure):
+            # k = 3 if i < n_conv -1 else 1
+            k = 3
             self.conv.append(
                 nn.Sequential(
                     nn.Conv2d(width_in, width_out, k),
@@ -77,7 +80,7 @@ class Net(nn.Module):
         p_drop = update_p_drop(p_drop)
 
         dense_in = hidden_structure[0]
-        for i in range(n_fc - 2):
+        for i in range(len(hidden_structure) - 1):
             dense_out = hidden_structure[i + 1]
             self.dense.append(
                 nn.Sequential(
@@ -110,11 +113,11 @@ class Net(nn.Module):
         return (conv_in - k) // s + (1 + 2 * p)
 
     @staticmethod
-    def _update_p_drop(max_p_drop=0.5) -> float:
+    def _update_p_drop(max_p_drop=0.5, inc_p_drop=0.1) -> float:
         """Update dropout probability by increasing by 10% up to max"""
 
         def wrapper(p_drop):
-            p_drop += 0.1
+            p_drop += inc_p_drop
             return p_drop if p_drop < max_p_drop else max_p_drop
 
         return wrapper

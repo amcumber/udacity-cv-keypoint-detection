@@ -1,10 +1,11 @@
 # # Modified from https://github.com/salvioli/deep-rl-tennis
 FROM ubuntu:latest
 LABEL author="aaron.mcumber@gmail.com"
+LABEL citation="https://u.group/thinking/how-to-put-jupyter-notebooks-in-a-dockerfile/"
 
-RUN apt-get update
-RUN apt-get install -y build-essential
-RUN apt-get install -y python3.9 python3-pip python3-dev
+RUN apt-get update && apt-get -y update
+RUN apt-get install --no-install-recommends -y build-essential python3.9 && \
+    python3-pip python3-dev
 RUN apt-get install -y unzip git
 RUN apt-get install wget
 

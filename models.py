@@ -12,13 +12,16 @@ from torch.nn.modules.container import Sequential
 class Net(nn.Module):
     """Nerual Network for facial Keypoint detection"""
 
-    ACT = nn.ReLU()
-
     def __init__(
         self,
         n_input: int = 224,
         n_output: int = 136,
         dense_size: int = 1024,
+        p_drop_init: float = 0.1,
+        max_p_drop: float = 0.25,
+        n_conv: int = 4,
+        n_fc: int = 3,
+        act_fun: callable = nn.ReLU(),
     ):
         """Constuctor"""
         super().__init__()
@@ -37,53 +40,53 @@ class Net(nn.Module):
 
         # inital architecture https://arxiv.org/pdf/1710.00977.pdf
         conv_out = n_input
+        conv_structure = (32, 64, 128, 256, 512)
 
         # Build
+        self.act_f = act_fun
+
+        width_in = width_out = 1
+        p_drop = p_drop_init
+        update_p_drop = self._update_p_drop(max_p_drop=max_p_drop)
+
         self.conv = nn.ModuleList()
-        width_in = 1
-        p_drop = 0.1
-        for i, width_out in zip(range(4), (32, 64, 128, 256)):
-            k = 5 if i % 2 else 3
+        for i, width_out in zip(range(n_conv), conv_structure[:n_conv]):
+            # k = 5 if i % 2 else 3
+            k = 3
             self.conv.append(
                 nn.Sequential(
                     nn.Conv2d(width_in, width_out, k),
-                    self.ACT,
+                    self.act_f,
                     nn.MaxPool2d(2, 2),
                     # nn.Dropout(p_drop),
                 )
             )
-            p_drop = self._update_p_drop(p_drop)
+            p_drop = update_p_drop(p_drop)
             width_in = width_out
             conv_out = self._get_conv_side(conv_out, k=k) // 2
 
         self.dense = nn.ModuleList()
+        # n = 1
         self.dense.append(
             nn.Sequential(
                 nn.Linear(conv_out ** 2 * width_out, dense_size),
-                self.ACT,
-                # nn.Dropout(p_drop),
-            )
-        )
-        p_drop = self._update_p_drop(p_drop)
-
-        self.dense.append(
-            nn.Sequential(
-                nn.Linear(dense_size, dense_size),
-                self.ACT,
+                self.act_f,
                 nn.Dropout(p_drop),
             )
         )
-        p_drop = self._update_p_drop(p_drop)
+        p_drop = update_p_drop(p_drop)
 
-        self.dense.append(
-            nn.Sequential(
-                nn.Linear(dense_size, dense_size),
-                self.ACT,
-                nn.Dropout(p_drop),
+        for _ in range(n_fc - 2):
+            self.dense.append(
+                nn.Sequential(
+                    nn.Linear(dense_size, dense_size),
+                    self.act_f,
+                    nn.Dropout(p_drop),
+                )
             )
-        )
-        p_drop = self._update_p_drop(p_drop)
+            p_drop = update_p_drop(p_drop)
 
+        # n = -1
         self.dense.append(nn.Sequential(nn.Linear(dense_size, n_output)))
 
         ## Note that among the layers to add, consider including:
@@ -97,10 +100,14 @@ class Net(nn.Module):
         return (conv_in - k) // s + (1 + 2 * p)
 
     @staticmethod
-    def _update_p_drop(p_drop, max_p_drop=0.5) -> float:
+    def _update_p_drop(max_p_drop=0.5) -> float:
         """Update dropout probability by increasing by 10% up to max"""
-        p_drop += 0.1
-        return p_drop if p_drop < max_p_drop else max_p_drop
+
+        def wrapper(p_drop):
+            p_drop += 0.1
+            return p_drop if p_drop < max_p_drop else max_p_drop
+
+        return wrapper
 
     def forward(self, x):
         """

@@ -1,6 +1,6 @@
-from __future__ import annotations
 import glob
 import os
+from typing import Dict
 import torch
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
@@ -126,7 +126,7 @@ class RandomRotate(object):
         else:
             return sample
 
-    def cw(self, sample) -> dict[str : np.ndarray]:
+    def cw(self, sample) -> Dict[str : np.ndarray]:
         image, key_pts = sample["image"], sample["keypoints"]
         h, w = image.shape[:2]
         img = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)

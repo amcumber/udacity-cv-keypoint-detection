@@ -70,7 +70,7 @@ class Net(nn.Module):
             nn.Sequential(
                 nn.Linear(dense_size, dense_size),
                 self.ACT,
-                # nn.Dropout(p_drop),
+                nn.Dropout(p_drop),
             )
         )
         p_drop += 0.1
@@ -79,7 +79,7 @@ class Net(nn.Module):
             nn.Sequential(
                 nn.Linear(dense_size, dense_size),
                 self.ACT,
-                # nn.Dropout(p_drop),
+                nn.Dropout(p_drop),
             )
         )
         p_drop += 0.1

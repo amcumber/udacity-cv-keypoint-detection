@@ -18,7 +18,7 @@ class Net(nn.Module):
         n_output: int = 136,
         p_drop_init: float = 0.1,
         max_p_drop: float = 0.25,
-        n_conv: int = 4,
+        n_conv: int = 5,
         n_fc: int = 3,
         act_fun: callable = nn.ReLU(),
     ):
@@ -39,7 +39,7 @@ class Net(nn.Module):
 
         # inital architecture https://arxiv.org/pdf/1710.00977.pdf
         conv_out = n_input
-        conv_structure = (64, 128, 256, 512)
+        conv_structure = (32, 64, 128, 256, 512)
         hidden_structure = (1024, 512)
 
         # Build
@@ -50,9 +50,9 @@ class Net(nn.Module):
         update_p_drop = self._update_p_drop(max_p_drop=max_p_drop)
 
         self.conv = nn.ModuleList()
-        for _, width_out in zip(range(n_conv), conv_structure[:n_conv]):
+        for i, width_out in zip(range(n_conv), conv_structure[:n_conv]):
             # k = 5 if i % 2 else 3
-            k = 3
+            k = 3 if i < n_conv - 1 else 1
             self.conv.append(
                 nn.Sequential(
                     nn.Conv2d(width_in, width_out, k),
@@ -76,16 +76,18 @@ class Net(nn.Module):
         )
         p_drop = update_p_drop(p_drop)
 
+        dense_in = hidden_structure[0]
         for i in range(n_fc - 2):
-            idx = 0 if i < n_fc - 3 else 1
+            dense_out = hidden_structure[i + 1]
             self.dense.append(
                 nn.Sequential(
-                    nn.Linear(hidden_structure[0], hidden_structure[idx]),
+                    nn.Linear(dense_in, dense_out),
                     self.act_f,
                     nn.Dropout(p_drop),
                 )
             )
             p_drop = update_p_drop(p_drop)
+            dense_in = dense_out
 
         # n = -1
         self.dense.append(

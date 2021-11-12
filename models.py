@@ -50,7 +50,7 @@ class Net(nn.Module):
         update_p_drop = self._update_p_drop(max_p_drop=max_p_drop)
 
         self.conv = nn.ModuleList()
-        for i, width_out in zip(range(n_conv), conv_structure[:n_conv]):
+        for _, width_out in zip(range(n_conv), conv_structure[:n_conv]):
             # k = 5 if i % 2 else 3
             k = 3
             self.conv.append(

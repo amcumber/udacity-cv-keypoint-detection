@@ -52,7 +52,7 @@ class Net(nn.Module):
                     # nn.Dropout(p_drop),
                 )
             )
-            p_drop += 0.1
+            p_drop = self._update_p_drop(p_drop)
             width_in = width_out
             conv_out = self._get_conv_side(conv_out, k=k) // 2
 
@@ -64,7 +64,7 @@ class Net(nn.Module):
                 # nn.Dropout(p_drop),
             )
         )
-        p_drop += 0.1
+        p_drop = self._update_p_drop(p_drop)
 
         self.dense.append(
             nn.Sequential(
@@ -73,7 +73,7 @@ class Net(nn.Module):
                 nn.Dropout(p_drop),
             )
         )
-        p_drop += 0.1
+        p_drop = self._update_p_drop(p_drop)
 
         self.dense.append(
             nn.Sequential(
@@ -82,7 +82,7 @@ class Net(nn.Module):
                 nn.Dropout(p_drop),
             )
         )
-        p_drop += 0.1
+        p_drop = self._update_p_drop(p_drop)
 
         self.dense.append(nn.Sequential(nn.Linear(dense_size, n_output)))
 
@@ -95,6 +95,12 @@ class Net(nn.Module):
     def _get_conv_side(conv_in, k=3, s=1, p=0) -> None:
         """Get convolutional side after a pass"""
         return (conv_in - k) // s + (1 + 2 * p)
+
+    @staticmethod
+    def _update_p_drop(p_drop, max_p_drop=0.5) -> float:
+        """Update dropout probability by increasing by 10% up to max"""
+        p_drop += 0.1
+        return p_drop if p_drop < max_p_drop else max_p_drop
 
     def forward(self, x):
         """

@@ -19,12 +19,11 @@ class Net(nn.Module):
         p_drop_init: float = 0.25,
         inc_p_drop: float = 0.1,
         max_p_drop: float = 0.25,
-        conv_structure=(32, 64, 128, 256, 512),
-        fc_structure=(1024, 1024, 512),
+        conv_structure=(32,),(32, 64, 128, 256, 512),
+        fc_structure=(1024,),#(1024, 1024, 512),
         act_fun: callable = nn.ReLU(),
     ):
         """Constuctor"""
-        super().__init__()
         # TODOne: Define all the layers of this CNN, the only requirements are:
         # 1. This network takes in a square (same width and height), grayscal
         #     image as input
@@ -38,7 +37,9 @@ class Net(nn.Module):
         # output channels/feature maps, 5x5 square convolution kernel
         # self.conv1 = nn.Conv2d(1, 32, 5)
 
-        # inital architecture https://arxiv.org/pdf/1710.00977.pdf
+        # initial architecture https://arxiv.org/pdf/1710.00977.pdf
+        super().__init__()
+
         conv_out = n_input
         hidden_structure = fc_structure
 

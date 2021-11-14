@@ -19,8 +19,8 @@ class Net(nn.Module):
         p_drop_init: float = 0.25,
         inc_p_drop: float = 0.1,
         max_p_drop: float = 0.25,
-        conv_structure=(32,),(32, 64, 128, 256, 512),
-        fc_structure=(1024,),#(1024, 1024, 512),
+        conv_structure=(32, 64, 128, 256, 512),
+        fc_structure=(1024, 1024, 512),
         act_fun: callable = nn.ReLU(),
     ):
         """Constuctor"""

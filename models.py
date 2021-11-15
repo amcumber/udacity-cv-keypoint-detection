@@ -1,5 +1,6 @@
 """Define the neural net for facial keypoint detection"""
 ## TODOne: define the convolutional neural network architecture
+from typing import Tuple
 import pandas as pd
 from torch import nn
 import torch.nn.functional as F
@@ -19,8 +20,9 @@ class Net(nn.Module):
         p_drop_init: float = 0.25,
         inc_p_drop: float = 0.1,
         max_p_drop: float = 0.25,
-        conv_structure=(32, 64, 128, 256, 512),
-        fc_structure=(1024, 1024, 512),
+        kernel_sizes: Tuple[int] = (3, 3, 3, 3, 3),
+        conv_structure: Tuple[int] = (32, 64, 128, 256, 512),
+        fc_structure: Tuple[int] = (1024, 1024, 512),
         act_fun: callable = nn.ReLU(),
     ):
         """Constuctor"""
@@ -40,29 +42,28 @@ class Net(nn.Module):
         # initial architecture https://arxiv.org/pdf/1710.00977.pdf
         super().__init__()
 
-        conv_out = n_input
-        hidden_structure = fc_structure
-
         # Build
         self.act_f = act_fun
 
-        width_in = width_out = 1
+        # Make p_drop function
         p_drop = p_drop_init
         update_p_drop = self._update_p_drop(
             max_p_drop=max_p_drop,
             inc_p_drop=inc_p_drop,
         )
 
+        # Make Conv layers
         self.conv = nn.ModuleList()
-        for i, width_out in zip(range(len(conv_structure)), conv_structure):
-            # k = 3 if i < n_conv -1 else 1
-            k = 3
+        conv_out = n_input
+        width_in = width_out = 1
+        for width_out, k in zip(conv_structure, kernel_sizes):
+            # k = 3
             self.conv.append(
                 nn.Sequential(
                     nn.Conv2d(width_in, width_out, k),
                     self.act_f,
                     nn.MaxPool2d(2, 2),
-                    # nn.Dropout(p_drop),
+                    nn.Dropout(p_drop),
                 )
             )
             p_drop = update_p_drop(p_drop)
@@ -70,19 +71,10 @@ class Net(nn.Module):
             conv_out = self._get_conv_side(conv_out, k=k) // 2
 
         self.dense = nn.ModuleList()
-        # n = 1
-        self.dense.append(
-            nn.Sequential(
-                nn.Linear(conv_out ** 2 * width_out, hidden_structure[0]),
-                self.act_f,
-                nn.Dropout(p_drop),
-            )
-        )
-        p_drop = update_p_drop(p_drop)
 
-        dense_in = hidden_structure[0]
-        for i in range(len(hidden_structure) - 1):
-            dense_out = hidden_structure[i + 1]
+        # Make Dense Layers
+        dense_in = dense_out = conv_out ** 2 * width_out
+        for dense_out in fc_structure:
             self.dense.append(
                 nn.Sequential(
                     nn.Linear(dense_in, dense_out),
@@ -93,11 +85,11 @@ class Net(nn.Module):
             p_drop = update_p_drop(p_drop)
             dense_in = dense_out
 
-        # n = -1
+        # Output Layer n = -1
         self.dense.append(
             nn.Sequential(
                 nn.Linear(
-                    hidden_structure[-1],
+                    dense_out,
                     n_output,
                 )
             )
